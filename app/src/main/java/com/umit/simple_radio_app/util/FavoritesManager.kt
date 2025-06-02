@@ -9,49 +9,49 @@ import com.umit.simple_radio_app.model.Station
 class FavoritesManager(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
-    private val gson = Gson()
+    private val GSON = Gson()
 
-    fun getFavorites(): Set<String> {
-        return prefs.getStringSet("favorites", emptySet()) ?: emptySet()
+    fun getFavorites(): Set<Station> {
+        val json = prefs.getString("favorites_stations", null)
+        return if (json == null) {
+            emptySet()
+        } else {
+            val type = object : TypeToken<Set<Station>>() {}.type
+            GSON.fromJson(json, type) ?: emptySet()
+        }
     }
 
-    fun isFavorite(url: String): Boolean {
-        return getFavorites().contains(url)
+    fun isFavorite(id: String?): Boolean {
+        return getFavorites().any { it.stationuuid == id }
     }
 
-    fun addFavorite(url: String) {
-        val favs = getFavorites().toMutableSet()
-        favs.add(url)
-        prefs.edit().putStringSet("favorites", favs).apply()
+    fun addFavorite(station: Station) {
+        val currentFavorites = getFavorites().toMutableSet()
+        if (!currentFavorites.any { it.stationuuid == station.stationuuid }) {
+            currentFavorites.add(station)
+            saveFavorites(currentFavorites)
+        }
     }
 
-    fun removeFavorite(url: String) {
-        val favs = getFavorites().toMutableSet()
-        favs.remove(url)
-        prefs.edit().putStringSet("favorites", favs).apply()
+    fun removeFavorite(station: Station) {
+        val currentFavorites = getFavorites().toMutableSet()
+        if (currentFavorites.remove(station)) {
+            saveFavorites(currentFavorites)
+        }
     }
 
-    // Yeni: Localde station listesi tutmak için
-
-    fun getLocalStations(): List<Station> {
-        val json = prefs.getString("local_stations", null)
-        if (json.isNullOrEmpty()) return emptyList()
-        val type = object : TypeToken<List<Station>>() {}.type
-        return gson.fromJson(json, type)
-    }
-
-    fun saveLocalStations(stations: List<Station>) {
-        val json = gson.toJson(stations)
-        prefs.edit().putString("local_stations", json).apply()
+    private fun saveFavorites(favorites: Set<Station>) {
+        val json = GSON.toJson(favorites)
+        prefs.edit().putString("favorites_stations", json).apply()
     }
 
     fun saveLastPlayedStation(station: Station) {
-        val json = Gson().toJson(station)
+        val json = GSON.toJson(station)
         prefs.edit().putString("last_played_station", json).apply()
     }
 
     fun getLastPlayedStation(): Station? {
         val json = prefs.getString("last_played_station", null) ?: return null
-        return Gson().fromJson(json, Station::class.java)
+        return GSON.fromJson(json, Station::class.java)
     }
 }

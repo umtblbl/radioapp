@@ -36,15 +36,15 @@ fun PlayerBar(
     Surface(
         tonalElevation = 8.dp,
         color = Color.DarkGray,
-        modifier = Modifier.height(90.dp) // Yaklaşık %50 artış (orijinal ~60dp)
+        modifier = Modifier.height(90.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp), // Artırıldı
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val iconSize = 60.dp // Orijinal 40.dp iken %50 büyüdü
+            val iconSize = 60.dp
             val iconPaddingEnd = 24.dp
 
             if (!station.favicon.isNullOrBlank()) {
@@ -89,13 +89,13 @@ fun PlayerBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(
-                        fontSize = 25.sp, // Orijinal ~17sp iken %50 büyüdü
+                        fontSize = 25.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 )
             }
 
-            val buttonIconSize = 42.dp // Orijinal ~28.dp civarındaydı, %50 büyüdü
+            val buttonIconSize = 42.dp
             val buttonPadding = 6.dp
 
             IconButton(

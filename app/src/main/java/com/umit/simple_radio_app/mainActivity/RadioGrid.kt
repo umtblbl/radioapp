@@ -31,7 +31,7 @@ fun RadioGrid(
     stations: List<Station>,
     favorites: Set<String>,
     paginationTriggerIndex: Int = stations.lastIndex,
-    onToggleFavorite: (String) -> Unit,
+    onToggleFavorite: (Station) -> Unit,
     onPlay: (String) -> Unit,
     onEndReached: () -> Unit,
     loadingUrl: String? = null
@@ -43,7 +43,7 @@ fun RadioGrid(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(Color.Black)
     ) {
         itemsIndexed(stations) { index, station ->
 
@@ -53,11 +53,14 @@ fun RadioGrid(
                 modifier = Modifier
                     .fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.DarkGray
+                ),
                 elevation = CardDefaults.cardElevation(6.dp)
             ) {
                 Row(
                     modifier = Modifier
-                        .background(Color.White)
+                        .background(Color.DarkGray)
                         .clickable(enabled = !isLoading) {
                             station.url?.let { onPlay(it) }
                         }
@@ -76,15 +79,15 @@ fun RadioGrid(
                                 .size(40.dp)
                                 .padding(end = 16.dp),
                             contentScale = ContentScale.Crop,
-                            placeholder = ColorPainter(Color.LightGray),
-                            error = ColorPainter(Color.LightGray)
+                            placeholder = ColorPainter(Color.Black),
+                            error = ColorPainter(Color.Black)
                         )
                     } else {
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
                                 .padding(end = 16.dp)
-                                .background(Color.LightGray),
+                                .background(Color.DarkGray),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -100,7 +103,7 @@ fun RadioGrid(
                         text = station.name ?: "Bilinmeyen Radyo",
                         style = MaterialTheme.typography.bodyLarge.copy(fontSize = 24.sp),
                         modifier = Modifier.weight(1f),
-                        color = Color.Black
+                        color = Color.White
                     )
 
                     if (isLoading) {
@@ -112,11 +115,11 @@ fun RadioGrid(
                     } else {
                         IconButton(
                             onClick = {
-                                station.url?.let { onToggleFavorite(it) }
+                                onToggleFavorite(station)
                             },
                             modifier = Modifier.size(40.dp)
                         ) {
-                            if (favorites.contains(station.url)) {
+                            if (favorites.contains(station.stationuuid)) {
                                 Icon(
                                     imageVector = Icons.Filled.Favorite,
                                     contentDescription = "Favorilerden Kaldır",

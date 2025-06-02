@@ -7,6 +7,8 @@ import com.umit.simple_radio_app.repository.RadioRepository
 import com.umit.simple_radio_app.util.FavoritesManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 
 class RadioViewModel(
@@ -14,11 +16,22 @@ class RadioViewModel(
     private val favoritesManager: FavoritesManager
 ) : ViewModel() {
 
-    private val _stations = MutableStateFlow<List<Station>>(emptyList())
-    val stations: StateFlow<List<Station>> get() = _stations
+    private val _allStations = MutableStateFlow<List<Station>>(emptyList())
+    val allStations: StateFlow<List<Station>> get() = _allStations
+
+    private val _currentSearchQuery = MutableStateFlow("")
+    private var lastApiQuery = ""
+
+    private val _displayedStationsApiResult = MutableStateFlow<List<Station>>(emptyList())
+    val displayedStations: StateFlow<List<Station>> = _displayedStationsApiResult
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     private val _favorites = MutableStateFlow(favoritesManager.getFavorites())
-    val favorites: StateFlow<Set<String>> get() = _favorites
+    val favorites: StateFlow<Set<Station>> get() = _favorites
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> get() = _errorMessage
@@ -31,35 +44,48 @@ class RadioViewModel(
     private val language = "turkish"
 
     private var isLoading = false
+    private var canLoadMore = true
 
     init {
-        // İlk önce localden yükle
-        val localStations = favoritesManager.getLocalStations()
-        if (localStations.isNotEmpty()) {
-            _stations.value = localStations
-            currentOffset = localStations.size
-        }
-        // Sonra servisten çek
-        fetchStations()
+        fetchStationsInternal(query = "", reset = true)
     }
 
-    fun fetchStations() {
-        if (isLoading) return
+    private fun fetchStationsInternal(query: String, reset: Boolean) {
+        if (isLoading && !reset) return
+
         isLoading = true
         _loading.value = true
+
+        if (reset) {
+            currentOffset = 0
+            _displayedStationsApiResult.value = emptyList()
+            canLoadMore = true
+            lastApiQuery = query
+        } else if (query != lastApiQuery) {
+            fetchStationsInternal(query, true)
+            return
+        }
+
         viewModelScope.launch {
             try {
-                val newStations = repository.getStations(language, currentOffset, limit)
-                // Yeni gelenler localdekilerle merge edilip güncelleniyor
-                val mergedStations = mergeStations(_stations.value, newStations)
-                _stations.value = mergedStations
-                currentOffset = mergedStations.size
+                val newStations = repository.getStations(
+                    name = query,
+                    language = language,
+                    offset = currentOffset,
+                    limit = limit
+                )
+
+                if (newStations.isEmpty()) {
+                    canLoadMore = false
+                }
+
+                _displayedStationsApiResult.value = _displayedStationsApiResult.value + newStations
+                _allStations.value = mergeStations(_allStations.value, newStations)
+                currentOffset = _displayedStationsApiResult.value.size
                 _errorMessage.value = null
-                // Local prefs'i güncelle
-                favoritesManager.saveLocalStations(mergedStations)
             } catch (e: Exception) {
-                _errorMessage.value =
-                    "Hata: ${e.localizedMessage}"
+                _errorMessage.value = "Hata: ${e.localizedMessage}"
+                canLoadMore = false
             } finally {
                 isLoading = false
                 _loading.value = false
@@ -68,44 +94,40 @@ class RadioViewModel(
     }
 
     fun loadMore() {
-        fetchStations()
+        if (canLoadMore) {
+            fetchStationsInternal(query = lastApiQuery, reset = false)
+        }
     }
 
-    fun toggleFavorite(url: String) {
-        if (favoritesManager.isFavorite(url)) {
-            favoritesManager.removeFavorite(url)
+    fun onSearchQueryChanged(query: String) {
+        _currentSearchQuery.value = query.trim()
+
+        if (_currentSearchQuery.value != lastApiQuery) {
+            fetchStationsInternal(query = _currentSearchQuery.value, reset = true)
+        }
+    }
+
+    fun toggleFavorite(station: Station) {
+        if (favoritesManager.isFavorite(station.stationuuid)) {
+            favoritesManager.removeFavorite(station)
         } else {
-            favoritesManager.addFavorite(url)
+            favoritesManager.addFavorite(station)
         }
         _favorites.value = favoritesManager.getFavorites()
     }
 
     fun getLastPlayedUrl() = favoritesManager.getLastPlayedStation()
-    fun saveLastPlayedUrl(
-        station: Station
-    ) = favoritesManager.saveLastPlayedStation(station)
+
+    fun saveLastPlayedUrl(station: Station) = favoritesManager.saveLastPlayedStation(station)
 
     fun clearError() {
         _errorMessage.value = null
     }
 
-    // İki listeyi stationuuid bazlı merge et
-    private fun mergeStations(
-        oldList: List<Station>,
-        newList: List<Station>
-    ): List<Station> {
+    private fun mergeStations(oldList: List<Station>, newList: List<Station>): List<Station> {
         val map = oldList.associateBy { it.stationuuid }.toMutableMap()
         for (station in newList) {
-            val oldStation = map[station.stationuuid]
-            if (oldStation == null) {
-                map[station.stationuuid] = station
-            } else {
-                // Eğer URL değiştiyse güncelle
-                if (oldStation.url != station.url) {
-                    map[station.stationuuid] = station
-                }
-                // Diğer alanlar için istersen başka güncellemeler yapılabilir
-            }
+            map[station.stationuuid] = station
         }
         return map.values.toList()
     }
