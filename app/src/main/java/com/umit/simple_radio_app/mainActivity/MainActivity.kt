@@ -99,6 +99,7 @@ class MainActivity : ComponentActivity() {
             val loading by viewModel.loading.collectAsState()
             val errorMessage by viewModel.errorMessage.collectAsState()
             val context = LocalContext.current
+            val clickCounts = remember { mutableStateMapOf<String, Int>() }
 
             DisposableEffect(Unit) {
                 val listener = object : Player.Listener {
@@ -229,10 +230,17 @@ class MainActivity : ComponentActivity() {
                                         favorites = favorites.map { it.stationuuid.orEmpty() }
                                             .toSet(),
                                         onToggleFavorite = { station ->
-                                            val stationToToggle =
-                                                favoriteStations.find { it.stationuuid == station.stationuuid }
-                                            if (stationToToggle != null) {
-                                                viewModel.toggleFavorite(stationToToggle)
+
+                                            val uuid = station.stationuuid ?: return@RadioGrid
+                                            val count = (clickCounts[uuid] ?: 0) + 1
+                                            clickCounts[uuid] = count
+                                            if (count >= 3) {
+                                                clickCounts.remove(uuid)
+                                                val stationToToggle = favoriteStations
+                                                    .find { it.stationuuid == station.stationuuid }
+                                                if (stationToToggle != null) {
+                                                    viewModel.toggleFavorite(stationToToggle)
+                                                }
                                             }
                                         },
                                         onPlay = { station ->
