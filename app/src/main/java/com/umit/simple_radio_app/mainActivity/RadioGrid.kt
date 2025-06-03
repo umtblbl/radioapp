@@ -32,7 +32,7 @@ fun RadioGrid(
     favorites: Set<String>,
     paginationTriggerIndex: Int = stations.lastIndex,
     onToggleFavorite: (Station) -> Unit,
-    onPlay: (String) -> Unit,
+    onPlay: (Station) -> Unit,
     onEndReached: () -> Unit,
     loadingUrl: String? = null
 ) {
@@ -61,8 +61,8 @@ fun RadioGrid(
                 Row(
                     modifier = Modifier
                         .background(Color.DarkGray)
-                        .clickable(enabled = !isLoading) {
-                            station.url?.let { onPlay(it) }
+                        .clickable {
+                            onPlay(station)
                         }
                         .padding(16.dp)
                         .fillMaxWidth(),

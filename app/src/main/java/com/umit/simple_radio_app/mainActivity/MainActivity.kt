@@ -195,11 +195,8 @@ class MainActivity : ComponentActivity() {
                                                 viewModel.toggleFavorite(stationToToggle)
                                             }
                                         },
-                                        onPlay = { url ->
-                                            val station = allStations.find { it.url == url }
-                                            if (station != null) {
-                                                playStation(station)
-                                            }
+                                        onPlay = { station ->
+                                            playStation(station)
                                         },
                                         onEndReached = { viewModel.loadMore() },
                                         paginationTriggerIndex = displayedStations.size - 5,
@@ -238,11 +235,8 @@ class MainActivity : ComponentActivity() {
                                                 viewModel.toggleFavorite(stationToToggle)
                                             }
                                         },
-                                        onPlay = { url ->
-                                            val station = allStations.find { it.url == url }
-                                            if (station != null) {
-                                                playStation(station)
-                                            }
+                                        onPlay = { station ->
+                                            playStation(station)
                                         },
                                         onEndReached = { },
                                         paginationTriggerIndex = -1,
