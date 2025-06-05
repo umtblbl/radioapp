@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.umit.simple_radio_app"
+    namespace = "com.umit.radioapp"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.umit.simple_radio_app"
+        applicationId = "com.umit.radioapp"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
