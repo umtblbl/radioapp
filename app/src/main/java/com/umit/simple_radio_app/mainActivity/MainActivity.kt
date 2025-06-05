@@ -1,7 +1,12 @@
 package com.umit.simple_radio_app.mainActivity
 
-import android.net.Uri
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.IBinder
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,12 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.google.accompanist.pager.*
+import com.google.gson.Gson
 import com.umit.simple_radio_app.api.RetrofitInstance
 import com.umit.simple_radio_app.model.Station
 import com.umit.simple_radio_app.repository.RadioRepository
@@ -41,58 +42,71 @@ class MainActivity : ComponentActivity() {
         FAVORITES, ALL
     }
 
-    private lateinit var exoPlayer: ExoPlayer
-
     private val viewModel: RadioViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val repo = RadioRepository(RetrofitInstance.api)
                 val favManager = FavoritesManager(applicationContext)
-                @Suppress("UNCHECKED_CAST")
                 return RadioViewModel(repo, favManager) as T
             }
         }
     }
 
-    private var lastKnownStation: Station? = null
-    private var currentPlayingUrl by mutableStateOf<String?>(null)
+    private var currentPlayingStation by mutableStateOf<Station?>(null)
     private var loadingUrl by mutableStateOf<String?>(null)
-    private var showDialog by mutableStateOf(false)
+    private var showDialog by mutableStateOf<String?>(null)
     private var isPlaying by mutableStateOf(false)
     private var searchQuery by mutableStateOf("")
     var stationToRemove by mutableStateOf<Station?>(null)
+    private val gson = Gson()
+
+    private var radioService: RadioService? = null
+    private var isServiceBound = mutableStateOf(false)
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as RadioService.RadioServiceBinder
+            radioService = binder.getService()
+            isServiceBound.value = true
+            radioService?.setPlaybackStatusCallback(playbackStatusCallback)
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            isServiceBound.value = false
+            radioService?.setPlaybackStatusCallback(null)
+            radioService = null
+        }
+    }
+
+    private val playbackStatusCallback = object : PlaybackStatusCallback {
+        override fun onPlaybackStatusChanged(
+            newIsPlaying: Boolean,
+            newStation: Station?,
+            newLoadingUrl: String?
+        ) {
+            isPlaying = newIsPlaying
+            currentPlayingStation = newStation
+            loadingUrl = newLoadingUrl
+        }
+
+        override fun onPlaybackError(errorMessage: String) {
+            Toast.makeText(this@MainActivity, errorMessage, Toast.LENGTH_LONG).show()
+            showDialog = "İnternet Bağlantınızı Kontrol Edin."
+            isPlaying = false
+            loadingUrl = null
+            currentPlayingStation = null
+
+            Log.e("MainActivityCallback", "onPlaybackError: $errorMessage")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        exoPlayer = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(this))
-            .build()
+        val serviceIntent = Intent(this, RadioService::class.java)
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
 
-        lastKnownStation = viewModel.getLastPlayedUrl()
-        currentPlayingUrl = lastKnownStation?.url
-
-        lastKnownStation?.let { station ->
-            val mediaItem = MediaItem.fromUri(Uri.parse(station.url))
-            exoPlayer.setMediaItem(mediaItem)
-            exoPlayer.prepare()
-        }
-
-        exoPlayer.addListener(object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                when (state) {
-                    Player.STATE_BUFFERING -> loadingUrl = currentPlayingUrl
-                    Player.STATE_READY, Player.STATE_ENDED, Player.STATE_IDLE -> loadingUrl = null
-                }
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                loadingUrl = null
-                showDialog = true
-                exoPlayer.pause()
-                isPlaying = false
-            }
-        })
+        currentPlayingStation = viewModel.getLastPlayedUrl()
 
         setContent {
             val displayedStations by viewModel.displayedStations.collectAsState()
@@ -101,17 +115,6 @@ class MainActivity : ComponentActivity() {
             val loading by viewModel.loading.collectAsState()
             val errorMessage by viewModel.errorMessage.collectAsState()
             val context = LocalContext.current
-            val clickCounts = remember { mutableStateMapOf<String, Int>() }
-
-            DisposableEffect(Unit) {
-                val listener = object : Player.Listener {
-                    override fun onIsPlayingChanged(playing: Boolean) {
-                        isPlaying = playing
-                    }
-                }
-                exoPlayer.addListener(listener)
-                onDispose { exoPlayer.removeListener(listener) }
-            }
 
             if (stationToRemove != null) {
                 AlertDialog(
@@ -276,20 +279,26 @@ class MainActivity : ComponentActivity() {
                     }
 
                     AnimatedVisibility(
-                        visible = currentPlayingUrl != null,
+                        visible = currentPlayingStation != null,
                         enter = fadeIn(),
                         exit = fadeOut()
                     ) {
-                        lastKnownStation?.let { station ->
+                        currentPlayingStation?.let { station ->
                             PlayerBar(
                                 station = station,
                                 isPlaying = isPlaying,
                                 onPlayPause = {
-                                    if (exoPlayer.isPlaying) {
-                                        exoPlayer.pause()
+                                    val serviceIntent = Intent(context, RadioService::class.java)
+                                    if (isPlaying) {
+                                        serviceIntent.action = RadioService.ACTION_PAUSE
                                     } else {
-                                        exoPlayer.play()
+                                        serviceIntent.action = RadioService.ACTION_PLAY
+                                        serviceIntent.putExtra(
+                                            RadioService.EXTRA_STATION_JSON,
+                                            gson.toJson(station)
+                                        )
                                     }
+                                    context.startService(serviceIntent)
                                 },
                                 onToggleFavorite = {
                                     viewModel.toggleFavorite(station)
@@ -297,7 +306,7 @@ class MainActivity : ComponentActivity() {
                                 isFavorite = favorites.any { it.url == station.url },
                                 onNext = {
                                     val currentIndex =
-                                        allStations.indexOfFirst { it.url == lastKnownStation?.url }
+                                        allStations.indexOfFirst { it.url == currentPlayingStation?.url }
                                     if (currentIndex != -1) {
                                         val nextIndex = (currentIndex + 1) % allStations.size
                                         val nextStation = allStations[nextIndex]
@@ -306,7 +315,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onPrevious = {
                                     val currentIndex =
-                                        allStations.indexOfFirst { it.url == lastKnownStation?.url }
+                                        allStations.indexOfFirst { it.url == currentPlayingStation?.url }
                                     if (currentIndex != -1) {
                                         val prevIndex =
                                             if (currentIndex - 1 < 0) allStations.size - 1 else currentIndex - 1
@@ -327,23 +336,21 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    if (errorMessage != null) {
-                        LaunchedEffect(errorMessage) {
-                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
-                            viewModel.clearError()
-                        }
-                    }
-
-                    if (showDialog) {
+                    if (showDialog != null) {
                         AlertDialog(
-                            onDismissRequest = { showDialog = false },
+                            onDismissRequest = { showDialog = null },
                             confirmButton = {
-                                TextButton(onClick = { showDialog = false }) {
+                                TextButton(onClick = { showDialog = null }) {
                                     Text("Tamam")
                                 }
                             },
                             title = { Text("Hata") },
-                            text = { Text("Radyo oynatılamadı, lütfen tekrar deneyin.") }
+                            text = {
+                                Text(
+                                    text = if (showDialog?.isBlank() == false) showDialog.orEmpty()
+                                    else "Radyo oynatılamadı, lütfen tekrar deneyin."
+                                )
+                            }
                         )
                     }
                 }
@@ -352,23 +359,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playStation(station: Station) {
-        try {
-            val mediaItem = MediaItem.fromUri(Uri.parse(station.url))
-            exoPlayer.setMediaItem(mediaItem)
-            exoPlayer.prepare()
-            exoPlayer.play()
-            currentPlayingUrl = station.url
-            lastKnownStation = station
-            viewModel.saveLastPlayedUrl(station)
-            loadingUrl = station.url
-        } catch (e: Exception) {
-            loadingUrl = null
-            Toast.makeText(this, "Oynatma hatası: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        val serviceIntent = Intent(this, RadioService::class.java).apply {
+            action = RadioService.ACTION_PLAY
+            putExtra(RadioService.EXTRA_STATION_JSON, gson.toJson(station))
         }
+        startService(serviceIntent)
+        viewModel.saveLastPlayedUrl(station)
     }
 
     override fun onDestroy() {
+        if (isServiceBound.value) {
+            radioService?.setPlaybackStatusCallback(null)
+            unbindService(serviceConnection)
+            isServiceBound.value = false
+        }
+        val stopServiceIntent = Intent(this, RadioService::class.java).apply {
+            action = RadioService.ACTION_STOP
+        }
+        stopService(stopServiceIntent)
         super.onDestroy()
-        exoPlayer.release()
     }
 }
