@@ -75,12 +75,12 @@ class RadioViewModel(
                     limit = limit
                 )
 
-                if (newStations.isEmpty()) {
+                if (newStations?.isEmpty() == true) {
                     canLoadMore = false
                 }
 
-                _displayedStationsApiResult.value = _displayedStationsApiResult.value + newStations
-                _allStations.value = mergeStations(_allStations.value, newStations)
+                _displayedStationsApiResult.value += newStations.orEmpty()
+                _allStations.value = mergeStations(_allStations.value, newStations.orEmpty())
                 currentOffset = _displayedStationsApiResult.value.size
                 _errorMessage.value = null
             } catch (e: Exception) {

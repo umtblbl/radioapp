@@ -2,6 +2,7 @@ package com.umit.simple_radio_app.mainActivity
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -9,9 +10,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,10 +51,17 @@ fun RadioGrid(
         itemsIndexed(stations) { index, station ->
 
             val isLoading = loadingUrl == station.url
+            val interactionSource = remember { MutableInteractionSource() }
 
             Card(
                 modifier = Modifier
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = rememberRipple(bounded = true, color = Color.White)
+                    ) {
+                        onPlay(station)
+                    },
                 shape = MaterialTheme.shapes.medium,
                 colors = CardDefaults.cardColors(
                     containerColor = Color.DarkGray
@@ -61,9 +71,6 @@ fun RadioGrid(
                 Row(
                     modifier = Modifier
                         .background(Color.DarkGray)
-                        .clickable {
-                            onPlay(station)
-                        }
                         .padding(16.dp)
                         .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -113,11 +120,16 @@ fun RadioGrid(
                             color = Color.Red
                         )
                     } else {
-                        IconButton(
-                            onClick = {
-                                onToggleFavorite(station)
-                            },
-                            modifier = Modifier.size(40.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = rememberRipple(bounded = false, color = Color.Red)
+                                ) {
+                                    onToggleFavorite(station)
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
                             if (favorites.contains(station.stationuuid)) {
                                 Icon(

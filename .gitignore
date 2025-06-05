@@ -1,0 +1,62 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+*.swp
+ehthumbs.db
+Thumbs.db
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+*.bak
+*.tmp
+
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+.gradle-cache/
+.gradle-config/
+
+# Kotlin/Java compiled files
+*.class
+*.jar
+*.war
+*.ear
+*.dex
+
+# Android build
+*/build/
+*/bin/
+*.apk
+*.ap_
+
+# Generated files
+local.properties
+captures/
+output.json
+
+# Others
+*.log
+*.keystore
+*.jks
+*.orig
+
+# Firebase / Crashlytics
+fabric.properties
+crashlytics.properties
+crashlytics-build.properties
+
+# Google Services JSON (gönderme diyorsan)
+google-services.json
+
+*.bin
+
+*.lock

@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
     private var showDialog by mutableStateOf(false)
     private var isPlaying by mutableStateOf(false)
     private var searchQuery by mutableStateOf("")
+    var stationToRemove by mutableStateOf<Station?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -109,6 +111,31 @@ class MainActivity : ComponentActivity() {
                 }
                 exoPlayer.addListener(listener)
                 onDispose { exoPlayer.removeListener(listener) }
+            }
+
+            if (stationToRemove != null) {
+                AlertDialog(
+                    onDismissRequest = {
+                        stationToRemove = null
+                    },
+                    title = { Text("Onay") },
+                    text = { Text("Favorilerden kaldırmak istediğinize emin misiniz?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.toggleFavorite(stationToRemove!!)
+                            stationToRemove = null
+                        }) {
+                            Text("Evet")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            stationToRemove = null
+                        }) {
+                            Text("Hayır")
+                        }
+                    }
+                )
             }
 
             val pagerState = rememberPagerState(initialPage = 0)
@@ -176,6 +203,10 @@ class MainActivity : ComponentActivity() {
                                                 color = Color.White
                                             )
                                         },
+                                        textStyle = TextStyle(
+                                            color = Color.White,
+                                            fontSize = 22.sp
+                                        ),
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(8.dp),
@@ -230,18 +261,7 @@ class MainActivity : ComponentActivity() {
                                         favorites = favorites.map { it.stationuuid.orEmpty() }
                                             .toSet(),
                                         onToggleFavorite = { station ->
-
-                                            val uuid = station.stationuuid ?: return@RadioGrid
-                                            val count = (clickCounts[uuid] ?: 0) + 1
-                                            clickCounts[uuid] = count
-                                            if (count >= 3) {
-                                                clickCounts.remove(uuid)
-                                                val stationToToggle = favoriteStations
-                                                    .find { it.stationuuid == station.stationuuid }
-                                                if (stationToToggle != null) {
-                                                    viewModel.toggleFavorite(stationToToggle)
-                                                }
-                                            }
+                                            stationToRemove = station
                                         },
                                         onPlay = { station ->
                                             playStation(station)
